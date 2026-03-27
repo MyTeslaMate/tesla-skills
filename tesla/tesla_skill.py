@@ -2,22 +2,23 @@
 """
 Tesla AI Agent — Anthropic SDK skill with OAuth authentication
 
-Embeds the system prompt and MCP server configuration. On first run the user
-authenticates via their browser (OAuth 2.0 PKCE). The token is cached locally
-and refreshed automatically on subsequent runs.
+Uses Dynamic Client Registration (DCR, RFC 7591) against the MyTeslaMate MCP
+server.  On first run the skill registers itself, then runs the PKCE OAuth
+flow via the MTM server (which proxies to Tesla).  The resulting MTM token is
+cached locally and refreshed automatically on subsequent runs.
 
 Usage:
     python tesla/tesla_skill.py "what is my battery level?"
 
-Required env vars:
-    ANTHROPIC_API_KEY     — Anthropic API key
-    MTM_CLIENT_ID         — MyTeslaMate OAuth client ID
-
 Optional env vars:
-    MTM_OAUTH_AUTH_URL    — OAuth authorization endpoint (default: Tesla fleet-auth)
-    MTM_OAUTH_TOKEN_URL   — OAuth token endpoint (default: Tesla fleet-auth)
-    MTM_CALLBACK_PORT     — Local callback port for OAuth redirect (default: 8085)
-    MTM_TOKEN_CACHE       — Path to token cache file (default: ~/.config/tesla-skill/token.json)
+    ANTHROPIC_API_KEY   — Anthropic API key (pay-as-you-go).
+                          Omit when running inside Claude Code to use
+                          subscription credentials instead.
+    MTM_MCP_BASE_URL    — Base URL of the MTM MCP server
+                          (default: https://mcp.myteslamate.com)
+    MTM_CALLBACK_PORT   — Local callback port for OAuth redirect (default: 8085)
+    MTM_TOKEN_CACHE     — Path to token cache file
+                          (default: ~/.config/tesla-skill/token.json)
 """
 
 import os
@@ -39,15 +40,7 @@ import anthropic
 # ---------------------------------------------------------------------------
 # OAuth configuration
 # ---------------------------------------------------------------------------
-_AUTH_URL = os.environ.get(
-    "MTM_OAUTH_AUTH_URL",
-    "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/authorize",
-)
-_TOKEN_URL = os.environ.get(
-    "MTM_OAUTH_TOKEN_URL",
-    "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token",
-)
-_CLIENT_ID = os.environ.get("MTM_CLIENT_ID")
+_MCP_BASE_URL = os.environ.get("MTM_MCP_BASE_URL", "https://mcp.myteslamate.com").rstrip("/")
 _CALLBACK_PORT = int(os.environ.get("MTM_CALLBACK_PORT", "8085"))
 _CALLBACK_URL = f"http://localhost:{_CALLBACK_PORT}/callback"
 _TOKEN_CACHE = Path(
@@ -57,6 +50,9 @@ _SCOPES = (
     "openid offline_access user_data vehicle_device_data vehicle_location "
     "vehicle_cmds vehicle_charging_cmds energy_device_data energy_cmds"
 )
+
+# Cached OAuth endpoints (populated by _discover_endpoints())
+_oauth_endpoints: dict = {}
 
 # ---------------------------------------------------------------------------
 # System prompt — hidden from the end-user
@@ -120,27 +116,54 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
 # ---------------------------------------------------------------------------
 # OAuth token management
 # ---------------------------------------------------------------------------
-def _login() -> dict:
-    """Run the PKCE OAuth flow and return the raw token response."""
-    if not _CLIENT_ID:
-        raise EnvironmentError(
-            "MTM_CLIENT_ID is not set.\n"
-            "Set it to your MyTeslaMate OAuth client ID and try again."
-        )
+def _discover_endpoints() -> dict:
+    """Fetch OAuth endpoints from the MTM server's well-known metadata."""
+    if _oauth_endpoints:
+        return _oauth_endpoints
+    url = f"{_MCP_BASE_URL}/.well-known/oauth-authorization-server"
+    resp = requests.get(url, timeout=10)
+    resp.raise_for_status()
+    meta = resp.json()
+    _oauth_endpoints.update(meta)
+    return _oauth_endpoints
 
+
+def _dcr_register() -> str:
+    """Register this skill via DCR (RFC 7591) and return the client_id."""
+    meta = _discover_endpoints()
+    reg_url = meta.get("registration_endpoint", f"{_MCP_BASE_URL}/register")
+    resp = requests.post(reg_url, json={
+        "client_name": "tesla-skill",
+        "redirect_uris": [_CALLBACK_URL],
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "token_endpoint_auth_method": "none",
+        "scope": _SCOPES,
+    }, timeout=10)
+    resp.raise_for_status()
+    return resp.json()["client_id"]
+
+
+def _login() -> dict:
+    """Register via DCR, then run the PKCE OAuth flow against the MTM server."""
+    meta = _discover_endpoints()
+    auth_url_base = meta["authorization_endpoint"]
+    token_url = meta["token_endpoint"]
+
+    client_id = _dcr_register()
     verifier, challenge = _pkce_pair()
     state = secrets.token_urlsafe(16)
 
     auth_params = urllib.parse.urlencode({
         "response_type": "code",
-        "client_id": _CLIENT_ID,
+        "client_id": client_id,
         "redirect_uri": _CALLBACK_URL,
         "scope": _SCOPES,
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
     })
-    auth_url = f"{_AUTH_URL}?{auth_params}"
+    auth_url = f"{auth_url_base}?{auth_params}"
 
     # Start local callback server in a background thread
     _OAuthCallbackHandler.result = {}
@@ -163,9 +186,9 @@ def _login() -> dict:
     if result.get("state") != state:
         raise RuntimeError("OAuth state mismatch — possible CSRF. Aborting.")
 
-    resp = requests.post(_TOKEN_URL, data={
+    resp = requests.post(token_url, data={
         "grant_type": "authorization_code",
-        "client_id": _CLIENT_ID,
+        "client_id": client_id,
         "redirect_uri": _CALLBACK_URL,
         "code": result["code"],
         "code_verifier": verifier,
@@ -174,21 +197,25 @@ def _login() -> dict:
 
     token = resp.json()
     token["expires_at"] = time.time() + token.get("expires_in", 3600)
+    # Persist client_id so refresh works without re-registering
+    token["client_id"] = client_id
     return token
 
 
 def _refresh(token: dict) -> dict:
     """Exchange a refresh token for a new access token."""
-    resp = requests.post(_TOKEN_URL, data={
+    meta = _discover_endpoints()
+    token_url = meta["token_endpoint"]
+    resp = requests.post(token_url, data={
         "grant_type": "refresh_token",
-        "client_id": _CLIENT_ID,
+        "client_id": token["client_id"],
         "refresh_token": token["refresh_token"],
     }, timeout=30)
     resp.raise_for_status()
     new_token = resp.json()
     new_token["expires_at"] = time.time() + new_token.get("expires_in", 3600)
-    # Preserve refresh_token if the new response omits it
     new_token.setdefault("refresh_token", token["refresh_token"])
+    new_token.setdefault("client_id", token["client_id"])
     return new_token
 
 
@@ -209,14 +236,18 @@ def _save_token(token: dict) -> None:
 
 def _get_access_token() -> str:
     """Return a valid access token, logging in or refreshing as needed."""
+    # Fast path: static token already in the environment
+    if os.environ.get("MTM_TOKEN"):
+        return os.environ["MTM_TOKEN"]
+
     token = _load_token()
 
     # Still valid with >5 min headroom
     if token and time.time() < token.get("expires_at", 0) - 300:
         return token["access_token"]
 
-    # Try to refresh
-    if token and token.get("refresh_token"):
+    # Try to refresh (requires cached client_id from previous DCR)
+    if token and token.get("refresh_token") and token.get("client_id"):
         print("Refreshing Tesla token…", file=sys.stderr)
         try:
             token = _refresh(token)
@@ -225,7 +256,7 @@ def _get_access_token() -> str:
         except Exception as exc:
             print(f"Token refresh failed ({exc}), re-authenticating…", file=sys.stderr)
 
-    # Full login
+    # Full login (DCR + PKCE)
     token = _login()
     _save_token(token)
     return token["access_token"]
@@ -238,13 +269,13 @@ def _mcp_servers(access_token: str) -> list[dict]:
     return [
         {
             "type": "url",
-            "url": "https://mcp.myteslamate.com/mcp?tags=tesla_fleet_api",
+            "url": f"{_MCP_BASE_URL}/mcp?tags=tesla_fleet_api",
             "name": "tesla_fleet_api",
             "authorization_token": access_token,
         },
         {
             "type": "url",
-            "url": "https://mcp.myteslamate.com/mcp?tags=teslamate",
+            "url": f"{_MCP_BASE_URL}/mcp?tags=teslamate",
             "name": "teslamate",
             "authorization_token": access_token,
         },
