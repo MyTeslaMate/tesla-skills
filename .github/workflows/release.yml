@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: |
+          COUNT=$(git rev-list --count HEAD)
+          echo "version=1.0.${COUNT}" >> $GITHUB_OUTPUT
+
+      - name: Build zip
+        run: |
+          FILES="SKILL.md"
+          [ -d references ] && FILES="$FILES references/"
+          zip -r tesla-skill.zip $FILES
+          echo "Contents of tesla-skill.zip:"
+          unzip -l tesla-skill.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          files: tesla-skill.zip
+          generate_release_notes: true
+          make_latest: true

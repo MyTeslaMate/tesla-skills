@@ -1,0 +1,9 @@
+{
+  "owner": "myteslamate",
+  "name": "tesla-skill",
+  "version": "1.0.0",
+  "description": "Tesla vehicle and energy system assistant for MyTeslaMate users. Queries vehicle status, executes commands, and analyzes charging and driving history.",
+  "category": "productivity",
+  "keywords": ["tesla", "teslamate", "myteslamate", "electric-vehicle", "ev", "powerwall"],
+  "repository": "https://github.com/myteslamate/tesla-skills"
+}

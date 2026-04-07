@@ -1,0 +1,105 @@
+name: Validate
+
+on:
+  pull_request:
+    paths:
+      - 'SKILL.md'
+      - 'references/**'
+      - '.claude-plugin/**'
+  push:
+    paths:
+      - 'SKILL.md'
+      - 'references/**'
+      - '.claude-plugin/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Validate SKILL.md frontmatter
+        run: |
+          python3 - << 'EOF'
+          import sys
+          import yaml
+
+          with open("SKILL.md", "r") as f:
+              content = f.read()
+
+          if not content.startswith("---"):
+              print("ERROR: SKILL.md must start with YAML frontmatter (---)")
+              sys.exit(1)
+
+          end = content.index("---", 3)
+          frontmatter = yaml.safe_load(content[3:end])
+
+          errors = []
+          if "name" not in frontmatter:
+              errors.append("Missing required field: 'name'")
+          if "description" not in frontmatter:
+              errors.append("Missing required field: 'description'")
+
+          if frontmatter.get("name") and not all(c.isalnum() or c == "-" for c in frontmatter["name"]):
+              errors.append("'name' must contain only alphanumeric characters and hyphens")
+
+          if frontmatter.get("description") and len(frontmatter["description"]) > 1024:
+              errors.append("'description' must be under 1024 characters")
+
+          if errors:
+              for e in errors:
+                  print(f"ERROR: {e}")
+              sys.exit(1)
+
+          print(f"OK: frontmatter valid (name={frontmatter['name']})")
+          EOF
+
+      - name: Check SKILL.md size
+        run: |
+          LINES=$(wc -l < SKILL.md)
+          echo "SKILL.md: ${LINES} lines"
+          if [ "$LINES" -gt 500 ]; then
+            echo "WARNING: SKILL.md exceeds 500 lines (${LINES}). Consider moving content to references/."
+          fi
+
+      - name: Validate marketplace.json
+        run: |
+          python3 - << 'EOF'
+          import json, sys, re
+
+          with open(".claude-plugin/marketplace.json") as f:
+              data = json.load(f)
+
+          required = ["owner", "name", "version", "description"]
+          for field in required:
+              if field not in data:
+                  print(f"ERROR: marketplace.json missing field: '{field}'")
+                  sys.exit(1)
+
+          semver = r"^\d+\.\d+\.\d+$"
+          if not re.match(semver, data["version"]):
+              print(f"ERROR: version '{data['version']}' is not valid semver (x.y.z)")
+              sys.exit(1)
+
+          print(f"OK: marketplace.json valid (version={data['version']})")
+          EOF
+
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: '**/*.md'
+          config: |
+            {
+              "MD013": false,
+              "MD033": false,
+              "MD041": false
+            }

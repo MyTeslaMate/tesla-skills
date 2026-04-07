@@ -1,83 +1,95 @@
-# tesla-skills
+# Tesla Skill for Claude
 
-Claude Code skills for the [MyTeslaMate](https://myteslamate.com) ecosystem.
+A Claude custom skill for Tesla owners using [MyTeslaMate](https://myteslamate.com).
 
-Each skill is a plain Markdown file that provides a system prompt and invokes the MyTeslaMate MCP servers — no Python, no OAuth flow.
+Query your vehicles, control climate and charging, and analyze your driving and energy history — all through natural language.
 
-## Pattern
+## Requirements
+
+- Claude.ai Pro / Max / Team / Enterprise with Skills enabled
+- [MyTeslaMate](https://myteslamate.com) account with MCP server access
+- MyTeslaMate MCP connected in your Claude.ai settings
+
+## Installation — 3 steps, 2 minutes
+
+**1. Connect the MyTeslaMate MCP server in Claude.ai**
+
+Go to **Claude.ai → Settings → Integrations → Add integration** and enter:
 
 ```
-skill/
-└── my_skill.md   ← Claude Code slash command (system prompt only)
+https://mcp.myteslamate.com/mcp
 ```
 
-MCP servers are configured once in `~/.claude/mcp.json` and reused by all skills.
+Authenticate with your MyTeslaMate account when prompted.
 
-The `.md` file is a [Claude Code custom command](https://docs.anthropic.com/en/docs/claude-code/slash-commands). Drop it into `~/.claude/commands/` and invoke it with `/my_skill <query>`.
+**2. Install the skill**
 
-## Available skills
+Download `tesla-skill.zip` from the [latest release](../../releases/latest), then go to:
 
-### `tesla/` — Tesla vehicle & energy assistant
+**Claude.ai → Settings → Features → Custom Skills → Upload Skill**
 
-Connects to the [MyTeslaMate MCP server](https://mcp.myteslamate.com) and answers questions or executes commands across your Tesla vehicles and energy systems.
+Upload the zip file.
 
-**Authentication:** a static MTM API token set once as an environment variable. Retrieve your token from your MyTeslaMate account settings.
+**3. Done**
 
-**Install:**
+Claude will automatically use the skill when you ask about your Tesla.
+
+## Usage examples
+
+```
+What's my battery level?
+Lock my car
+Set the AC to 22°C
+How much did I charge last month?
+Is my car plugged in?
+Open the charge port
+What's my Powerwall charge level?
+Show me my energy consumption this week
+```
+
+## Claude Code (CLI) users
+
+If you use Claude Code instead of claude.ai, configure the MCP servers directly:
 
 ```bash
-# 1. Register the MCP servers globally (once)
-cat >> ~/.claude/mcp.json << 'EOF'
-{
-  "mcpServers": {
-    "tesla_fleet_api": {
-      "type": "http",
-      "url": "https://mcp.myteslamate.com/mcp?tags=tesla_fleet_api",
-      "headers": { "Authorization": "Bearer ${MTM_TOKEN}" }
-    },
-    "teslamate": {
-      "type": "http",
-      "url": "https://mcp.myteslamate.com/mcp?tags=teslamate",
-      "headers": { "Authorization": "Bearer ${MTM_TOKEN}" }
-    }
-  }
-}
-EOF
+# Add MCP servers to your global config
+claude mcp add tesla_fleet_api --transport http \
+  "https://mcp.myteslamate.com/mcp?tags=tesla_fleet_api" \
+  --header "Authorization: Bearer ${MTM_TOKEN}"
 
-# 2. Copy the skill
-cp tesla/tesla_simple.md ~/.claude/commands/tesla.md
+claude mcp add teslamate --transport http \
+  "https://mcp.myteslamate.com/mcp?tags=teslamate" \
+  --header "Authorization: Bearer ${MTM_TOKEN}"
 
-# 3. Set your token (add to ~/.zshrc or ~/.profile)
+# Copy the skill as a slash command
+cp tesla-skill/SKILL.md ~/.claude/commands/tesla.md
+
+# Set your token
 export MTM_TOKEN=<your_myteslamate_token>
 ```
 
-**Usage:**
-
-```bash
-/tesla what is my battery level?
-/tesla lock my car
-/tesla set the AC to 22°C
-/tesla how much did I charge last month?
-```
-
----
-
-## Template
-
-The `template/` directory contains a minimal skeleton for building new skills:
-
-```bash
-cp template/skill_template.md myskill/myskill.md
-# Edit myskill.md — write your system prompt and reference your MCP servers
-```
+Then use `/tesla what is my battery level?`
 
 ## How it works
 
-Claude Code loads the MCP servers from `~/.claude/mcp.json` at startup and makes their tools available to all sessions. The skill `.md` file simply provides a system prompt and forwards the user's query — Claude handles the rest.
+The skill instructs Claude to route requests between two MCP servers:
+
+- **`teslamate`** — fast read-only queries (no vehicle wake needed)
+- **`tesla_fleet_api`** — commands and real-time vehicle control
 
 ```
-User query  →  /tesla <query>
-               └── tesla.md  (system prompt)
-                     └── Claude Code  ←→  mcp.myteslamate.com  (MTM_TOKEN)
-                           └── text response
+You → Claude + tesla-skill → teslamate MCP      (reads)
+                           → tesla_fleet_api MCP (commands)
+                                  ↕
+                         MyTeslaMate / TeslaMate
+                                  ↕
+                           Your Tesla vehicles
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE).
