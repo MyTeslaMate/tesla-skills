@@ -1,83 +1,82 @@
-# tesla-skills
+# Tesla Skill for Claude
 
-Claude Code skills for the [MyTeslaMate](https://myteslamate.com) ecosystem.
+A Claude custom skill for Tesla owners using [MyTeslaMate](https://myteslamate.com).
 
-Each skill is a plain Markdown file that provides a system prompt and invokes the MyTeslaMate MCP servers — no Python, no OAuth flow.
+Query your vehicles, control climate and charging, and analyze your driving and energy history — all through natural language.
 
-## Pattern
+## Requirements
 
+- Claude.ai Pro / Max / Team / Enterprise with Skills enabled
+- [MyTeslaMate](https://myteslamate.com) account with MCP server access
+- MyTeslaMate MCP connected in your Claude.ai settings
+
+## Installation — 3 steps, 2 minutes
+
+### 1. Connect the MyTeslaMate MCP server in Claude.ai
+
+Go to **Claude.ai → Settings → Integrations → Add integration** and enter:
+
+```text
+https://mcp.myteslamate.com/mcp
 ```
-skill/
-└── my_skill.md   ← Claude Code slash command (system prompt only)
+
+Authenticate with your MyTeslaMate account when prompted.
+
+### 2. Install the skill
+
+Download `tesla-skill.zip` from the [latest release](../../releases/latest), then go to
+**Claude.ai → Settings → Features → Custom Skills → Upload Skill** and upload the zip file.
+
+### 3. Done
+
+Claude will automatically use the skill when you ask about your Tesla.
+
+## Usage examples
+
+```text
+What's my battery level?
+Lock my car
+Set the AC to 22°C
+How much did I charge last month?
+Is my car plugged in?
+Open the charge port
+What's my Powerwall charge level?
+Show me my energy consumption this week
 ```
 
-MCP servers are configured once in `~/.claude/mcp.json` and reused by all skills.
+## Claude Code (CLI) users
 
-The `.md` file is a [Claude Code custom command](https://docs.anthropic.com/en/docs/claude-code/slash-commands). Drop it into `~/.claude/commands/` and invoke it with `/my_skill <query>`.
-
-## Available skills
-
-### `tesla/` — Tesla vehicle & energy assistant
-
-Connects to the [MyTeslaMate MCP server](https://mcp.myteslamate.com) and answers questions or executes commands across your Tesla vehicles and energy systems.
-
-**Authentication:** a static MTM API token set once as an environment variable. Retrieve your token from your MyTeslaMate account settings.
-
-**Install:**
+If you use Claude Code instead of claude.ai, add the MCP server and copy the skill:
 
 ```bash
-# 1. Register the MCP servers globally (once)
-cat >> ~/.claude/mcp.json << 'EOF'
-{
-  "mcpServers": {
-    "tesla_fleet_api": {
-      "type": "http",
-      "url": "https://mcp.myteslamate.com/mcp?tags=tesla_fleet_api",
-      "headers": { "Authorization": "Bearer ${MTM_TOKEN}" }
-    },
-    "teslamate": {
-      "type": "http",
-      "url": "https://mcp.myteslamate.com/mcp?tags=teslamate",
-      "headers": { "Authorization": "Bearer ${MTM_TOKEN}" }
-    }
-  }
-}
-EOF
+# Add the MCP server (OAuth — a browser window will open to authenticate)
+claude mcp add myteslamate --transport http "https://mcp.myteslamate.com/mcp"
 
-# 2. Copy the skill
-cp tesla/tesla_simple.md ~/.claude/commands/tesla.md
-
-# 3. Set your token (add to ~/.zshrc or ~/.profile)
-export MTM_TOKEN=<your_myteslamate_token>
+# Copy the skill as a slash command
+cp tesla-skill/SKILL.md ~/.claude/commands/tesla.md
 ```
 
-**Usage:**
-
-```bash
-/tesla what is my battery level?
-/tesla lock my car
-/tesla set the AC to 22°C
-/tesla how much did I charge last month?
-```
-
----
-
-## Template
-
-The `template/` directory contains a minimal skeleton for building new skills:
-
-```bash
-cp template/skill_template.md myskill/myskill.md
-# Edit myskill.md — write your system prompt and reference your MCP servers
-```
+Then use `/tesla what is my battery level?`
 
 ## How it works
 
-Claude Code loads the MCP servers from `~/.claude/mcp.json` at startup and makes their tools available to all sessions. The skill `.md` file simply provides a system prompt and forwards the user's query — Claude handles the rest.
+The skill instructs Claude how to route requests within the MyTeslaMate MCP server:
 
+- **`teslamate_*` tools** — fast read-only queries (no vehicle wake needed)
+- **Fleet API tools** — commands and real-time vehicle control
+
+```text
+You → Claude + tesla-skill → MyTeslaMate MCP (OAuth)
+                                  ↕
+                         MyTeslaMate / TeslaMate
+                                  ↕
+                           Your Tesla vehicles
 ```
-User query  →  /tesla <query>
-               └── tesla.md  (system prompt)
-                     └── Claude Code  ←→  mcp.myteslamate.com  (MTM_TOKEN)
-                           └── text response
-```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE).
