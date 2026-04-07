@@ -49,37 +49,27 @@ Show me my energy consumption this week
 
 ## Claude Code (CLI) users
 
-If you use Claude Code instead of claude.ai, configure the MCP servers directly:
+If you use Claude Code instead of claude.ai, add the MCP server and copy the skill:
 
 ```bash
-# Add MCP servers to your global config
-claude mcp add tesla_fleet_api --transport http \
-  "https://mcp.myteslamate.com/mcp?tags=tesla_fleet_api" \
-  --header "Authorization: Bearer ${MTM_TOKEN}"
-
-claude mcp add teslamate --transport http \
-  "https://mcp.myteslamate.com/mcp?tags=teslamate" \
-  --header "Authorization: Bearer ${MTM_TOKEN}"
+# Add the MCP server (OAuth — a browser window will open to authenticate)
+claude mcp add myteslamate --transport http "https://mcp.myteslamate.com/mcp"
 
 # Copy the skill as a slash command
 cp tesla-skill/SKILL.md ~/.claude/commands/tesla.md
-
-# Set your token
-export MTM_TOKEN=<your_myteslamate_token>
 ```
 
 Then use `/tesla what is my battery level?`
 
 ## How it works
 
-The skill instructs Claude to route requests between two MCP servers:
+The skill instructs Claude how to route requests within the MyTeslaMate MCP server:
 
-- **`teslamate`** — fast read-only queries (no vehicle wake needed)
-- **`tesla_fleet_api`** — commands and real-time vehicle control
+- **`teslamate_*` tools** — fast read-only queries (no vehicle wake needed)
+- **Fleet API tools** — commands and real-time vehicle control
 
 ```
-You → Claude + tesla-skill → teslamate MCP      (reads)
-                           → tesla_fleet_api MCP (commands)
+You → Claude + tesla-skill → MyTeslaMate MCP (OAuth)
                                   ↕
                          MyTeslaMate / TeslaMate
                                   ↕

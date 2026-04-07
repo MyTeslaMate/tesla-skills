@@ -1,6 +1,6 @@
 # TeslaMate Queries Reference
 
-Use the `teslamate` MCP server for all read-only and historical queries. These are fast and do not wake the vehicle.
+Use `teslamate_*` tools for all read-only and historical queries. These are fast and do not wake the vehicle.
 
 ## Current state
 

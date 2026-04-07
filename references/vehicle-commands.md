@@ -1,6 +1,6 @@
 # Vehicle Commands Reference
 
-Use the `tesla_fleet_api` MCP server for all commands below. Wake the vehicle first if needed.
+Use the Fleet API tools (all non-`teslamate_*` tools) for all commands below. Wake the vehicle first if needed.
 
 ## Door & security
 

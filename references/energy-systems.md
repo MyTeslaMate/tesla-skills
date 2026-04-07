@@ -1,6 +1,6 @@
 # Energy Systems Reference
 
-Use the `tesla_fleet_api` MCP server for Powerwall and solar queries and commands.
+Use the Fleet API tools for Powerwall and solar queries and commands.
 
 ## Powerwall queries
 
