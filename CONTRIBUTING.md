@@ -38,7 +38,7 @@ Use [conventional commits](https://www.conventionalcommits.org/):
 
 Examples:
 
-```
+```text
 feat: add Powerwall energy query patterns
 fix: correct vehicle wake routing for climate commands
 docs: add seat heater reference examples

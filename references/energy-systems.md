@@ -25,6 +25,7 @@ Use the Fleet API tools for Powerwall and solar queries and commands.
 Solar power is returned as part of `get_energy_site_live_status` → `solar_power` (watts).
 
 For historical solar production, use `get_energy_site_calendar_history`:
+
 - `kind`: `power` (5-min intervals) or `energy` (daily/monthly totals)
 - `period`: `day`, `month`, `year`, `lifetime`
 

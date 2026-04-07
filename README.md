@@ -12,31 +12,28 @@ Query your vehicles, control climate and charging, and analyze your driving and 
 
 ## Installation — 3 steps, 2 minutes
 
-**1. Connect the MyTeslaMate MCP server in Claude.ai**
+### 1. Connect the MyTeslaMate MCP server in Claude.ai
 
 Go to **Claude.ai → Settings → Integrations → Add integration** and enter:
 
-```
+```text
 https://mcp.myteslamate.com/mcp
 ```
 
 Authenticate with your MyTeslaMate account when prompted.
 
-**2. Install the skill**
+### 2. Install the skill
 
-Download `tesla-skill.zip` from the [latest release](../../releases/latest), then go to:
+Download `tesla-skill.zip` from the [latest release](../../releases/latest), then go to
+**Claude.ai → Settings → Features → Custom Skills → Upload Skill** and upload the zip file.
 
-**Claude.ai → Settings → Features → Custom Skills → Upload Skill**
-
-Upload the zip file.
-
-**3. Done**
+### 3. Done
 
 Claude will automatically use the skill when you ask about your Tesla.
 
 ## Usage examples
 
-```
+```text
 What's my battery level?
 Lock my car
 Set the AC to 22°C
@@ -68,7 +65,7 @@ The skill instructs Claude how to route requests within the MyTeslaMate MCP serv
 - **`teslamate_*` tools** — fast read-only queries (no vehicle wake needed)
 - **Fleet API tools** — commands and real-time vehicle control
 
-```
+```text
 You → Claude + tesla-skill → MyTeslaMate MCP (OAuth)
                                   ↕
                          MyTeslaMate / TeslaMate
