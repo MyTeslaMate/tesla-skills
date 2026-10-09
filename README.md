@@ -71,6 +71,17 @@ cp template/skill_template.md myskill/myskill.md
 # Edit myskill.md — write your system prompt and reference your MCP servers
 ```
 
+## Contributing
+
+To add a new skill:
+
+1. **Create the skill** from the template: `mkdir <skill> && cp template/skill_template.md <skill>/<skill>.md`. Write the system prompt, refer to the MCP servers by their `~/.claude/mcp.json` names (`tesla_fleet_api`, `teslamate`) and end with `$ARGUMENTS`, like `tesla/tesla_simple.md`.
+2. **Name it**: lowercase folder named after the skill, file `<skill>/<skill>[_variant].md`, installed as `~/.claude/commands/<skill>.md` so it runs as `/<skill>` (e.g. `tesla/tesla_simple.md` → `/tesla`).
+3. **Declare it** under [Available skills](#available-skills) with a ``### `<skill>/` — <one-line title>`` entry and the same parts as the Tesla entry: description, **Authentication**, **Install**, **Usage**.
+4. **Open a PR**: one skill per PR, no real token or personal data in examples (use placeholders such as `<your_myteslamate_token>`).
+
+`template/skill_template.py` is an optional Python runner (Anthropic SDK, needs `ANTHROPIC_API_KEY`); MCP-based skills do not need it.
+
 ## How it works
 
 Claude Code loads the MCP servers from `~/.claude/mcp.json` at startup and makes their tools available to all sessions. The skill `.md` file simply provides a system prompt and forwards the user's query — Claude handles the rest.
